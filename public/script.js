@@ -1,16 +1,16 @@
-// --- PENTING: Atur URL Backend Anda di sini ---
-// Jika frontend dan backend di-deploy bersamaan di Vercel, ini bisa dikosongkan.
-// Jika di-deploy terpisah (misalnya, backend di Render), isi dengan URL backend Anda.
-const backendBaseUrl = ''; // Contoh untuk Vercel. Ganti jika perlu.
+// --- Atur URL Backend Anda di sini ---
+// Karena kita deploy di Vercel untuk frontend dan backend, biarkan ini kosong.
+// Jika suatu saat backend Anda dihosting di tempat lain, isi dengan URL lengkap backend.
+const backendBaseUrl = 'https://epennzy21.vercel.app';
 
 // Variabel Global & Elemen DOM
 let products = [];
 let cart = JSON.parse(localStorage.getItem('epennzyCart')) || [];
-let orderHistory = JSON.parse(localStorage.getItem('epennzyOrderHistory')) || [];
 let adminToken = localStorage.getItem('epennzyAdminToken');
 let currentFilterCategory = 'Semua';
 let previousPage = 'discoverPage';
 
+// Ambil semua elemen DOM
 const productGrid = document.getElementById('productGrid');
 const categoryContainer = document.getElementById('categoryContainer');
 const cartItemsContainer = document.getElementById('cartItemsContainer');
@@ -27,8 +27,6 @@ const modalCloseButton = document.getElementById('modalClose');
 const notificationButtonEl = document.getElementById('notificationButton');
 const checkoutTotalAmountDisplayEl = document.getElementById('checkoutTotalAmountDisplay');
 const confirmViaWhatsAppButton = document.getElementById('confirmViaWhatsAppButton');
-
-// Elemen Admin
 const adminUsernameEl = document.getElementById('adminUsername');
 const adminPasswordEl = document.getElementById('adminPassword');
 const adminLoginButtonEl = document.getElementById('adminLoginButton');
@@ -55,33 +53,29 @@ function formatPrice(price) { return `Rp${Number(price).toLocaleString('id-ID')}
 function navigateTo(pageId) {
     document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
     setTimeout(() => {
-        document.querySelectorAll('.page').forEach(p => { if(p.id !== pageId) p.style.display = 'none'; });
+        document.querySelectorAll('.page').forEach(p => { if (p.id !== pageId) p.style.display = 'none'; });
         const targetPage = document.getElementById(pageId);
-        if (targetPage) { 
+        if (targetPage) {
             targetPage.style.display = 'block';
             setTimeout(() => targetPage.classList.add('active'), 10);
         } else {
             document.getElementById('discoverPage').style.display = 'block';
             setTimeout(() => document.getElementById('discoverPage').classList.add('active'), 10);
-            pageId = 'discoverPage';
         }
-        window.scrollTo(0, 0); 
+        window.scrollTo(0, 0);
         updateNavIcons(pageId);
         if (pageId === 'cartPage' || pageId === 'checkoutPage') updateCart();
-        else if (pageId === 'adminPanelPage') { if (adminToken) loadAdminOrders(); else navigateTo('adminLoginPage');}
+        else if (pageId === 'adminPanelPage') { if (adminToken) loadAdminOrders(); else navigateTo('adminLoginPage'); }
     }, 50);
 }
 function goBack() { navigateTo(previousPage || 'discoverPage'); }
 function handleSearchIconClick() {
     searchContainerEl.classList.toggle('hidden');
-    if (!searchContainerEl.classList.contains('hidden')) {
-        searchInput.focus();
-    }
+    if (!searchContainerEl.classList.contains('hidden')) searchInput.focus();
 }
 function updateNavIcons(pageId) {
     document.querySelectorAll('.bottom-nav-item svg.bottom-nav-icon-dark').forEach(icon => icon.classList.remove('active'));
-    let activeNav = pageId;
-    if (pageId === 'adminPanelPage') activeNav = 'adminLoginPage';
+    let activeNav = (pageId === 'adminPanelPage') ? 'adminLoginPage' : pageId;
     const activeNavItem = document.querySelector(`.bottom-nav-item[data-page='${activeNav}'] svg.bottom-nav-icon-dark`);
     if (activeNavItem) activeNavItem.classList.add('active');
     else document.querySelector(".bottom-nav-item[data-page='discoverPage'] svg.bottom-nav-icon-dark")?.classList.add('active');
@@ -98,8 +92,8 @@ function renderProducts(filter = '', category = 'Semua') {
         const categoryFilterMatch = category === 'Semua' || p.category.startsWith(category);
         return (nameMatch || catMatch) && categoryFilterMatch;
     });
-    if (filteredProducts.length === 0) { 
-        productGrid.innerHTML = `<p class="col-span-full text-center text-secondary-dark">Tidak ada produk yang cocok.</p>`; 
+    if (filteredProducts.length === 0) {
+        productGrid.innerHTML = `<p class="col-span-full text-center text-secondary-dark">Tidak ada produk yang cocok.</p>`;
     } else {
         filteredProducts.forEach(product => {
             productGrid.innerHTML += `
@@ -114,7 +108,7 @@ function renderProducts(filter = '', category = 'Semua') {
     }
 }
 function renderCategories() {
-    if(!categoryContainer || products.length === 0) return;
+    if (!categoryContainer || products.length === 0) return;
     const mainCategories = products.map(p => p.category.split(" - ")[0].trim());
     const uniqueCategories = ['Semua', ...new Set(mainCategories)];
     categoryContainer.innerHTML = '';
@@ -126,9 +120,9 @@ function renderCategories() {
             </button>`;
     });
 }
-function filterByCategory(category) { 
-    currentFilterCategory = category; 
-    renderCategories(); 
+function filterByCategory(category) {
+    currentFilterCategory = category;
+    renderCategories();
     renderProducts(searchInput ? searchInput.value : '', category);
 }
 function showProductDetail(productId) {
@@ -146,30 +140,37 @@ function showProductDetail(productId) {
     document.getElementById('productDetailAddToCartButton').onclick = () => { addToCart(product.id); };
     navigateTo('productDetailPage');
 }
-function getCurrentPageId() { 
-    for (let page of document.querySelectorAll('.page')) { 
+function getCurrentPageId() {
+    for (let page of document.querySelectorAll('.page')) {
         if (page.style.display !== 'none' && page.classList.contains('active')) { return page.id; }
     }
     return 'discoverPage';
 }
 
 // --- Logika Keranjang & Pesanan ---
-function addToCart(productId) { 
-    const product = products.find(p => p.id === productId); if (!product) return; 
-    if (cart.find(item => item.id === productId)) { showCustomAlert(`${product.name} sudah ada di keranjang.`, "Info"); } 
-    else { cart.push({ ...product, quantity: 1 }); showCustomAlert(`${product.name} telah ditambahkan ke keranjang!`, "Sukses");} 
-    updateCart(); 
+function addToCart(productId) {
+    const product = products.find(p => p.id === productId); if (!product) return;
+    if (cart.find(item => item.id === productId)) { showCustomAlert(`${product.name} sudah ada di keranjang.`, "Info"); }
+    else { cart.push({ ...product, quantity: 1 }); showCustomAlert(`${product.name} telah ditambahkan ke keranjang!`, "Sukses"); }
+    updateCart();
 }
 function removeFromCart(productId) { cart = cart.filter(item => item.id !== productId); updateCart(); }
 function updateCart() {
-    if(!cartItemsContainer) return;
+    if (!cartItemsContainer) return;
     cartItemsContainer.innerHTML = '';
-    if (cart.length === 0) { cartItemsContainer.innerHTML = '<p class="text-secondary-dark text-center">Keranjang belanja Anda kosong.</p>'; goToCheckoutButton.disabled = true; } 
-    else { goToCheckoutButton.disabled = false; cart.forEach(item => { cartItemsContainer.innerHTML += `<div class="flex items-center card-dark p-3 rounded-lg"><img src="${item.imageUrl}" alt="${item.name}" class="w-16 h-16 object-cover rounded-md mr-3"><div class="flex-grow"><h4 class="text-sm font-semibold text-main-dark">${item.name}</h4><p class="text-xs text-secondary-dark">${item.duration}</p><p class="text-sm font-semibold text-accent-dark">${formatPrice(item.price)}</p></div><button onclick="removeFromCart('${item.id}')" aria-label="Hapus" class="text-red-500 hover:text-red-700 ml-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>`; });}
+    if (cart.length === 0) { cartItemsContainer.innerHTML = '<p class="text-secondary-dark text-center">Keranjang belanja Anda kosong.</p>'; goToCheckoutButton.disabled = true; }
+    else {
+        goToCheckoutButton.disabled = false;
+        cart.forEach(item => {
+            cartItemsContainer.innerHTML += `<div class="flex items-center card-dark p-3 rounded-lg"><img src="${item.imageUrl}" alt="${item.name}" class="w-16 h-16 object-cover rounded-md mr-3"><div class="flex-grow"><h4 class="text-sm font-semibold text-main-dark">${item.name}</h4><p class="text-xs text-secondary-dark">${item.duration}</p><p class="text-sm font-semibold text-accent-dark">${formatPrice(item.price)}</p></div><button onclick="removeFromCart('${item.id}')" aria-label="Hapus" class="text-red-500 hover:text-red-700 ml-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>`;
+        });
+    }
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    cartSubtotalEl.textContent = formatPrice(subtotal); cartTotalEl.textContent = formatPrice(subtotal); 
-    if(checkoutTotalAmountDisplayEl) checkoutTotalAmountDisplayEl.textContent = formatPrice(subtotal);
-    cartItemCountEl.textContent = cart.length; cartItemCountEl.classList.toggle('hidden', cart.length === 0);
+    cartSubtotalEl.textContent = formatPrice(subtotal);
+    cartTotalEl.textContent = formatPrice(subtotal);
+    if (checkoutTotalAmountDisplayEl) checkoutTotalAmountDisplayEl.textContent = formatPrice(subtotal);
+    cartItemCountEl.textContent = cart.length;
+    cartItemCountEl.classList.toggle('hidden', cart.length === 0);
     localStorage.setItem('epennzyCart', JSON.stringify(cart));
 }
 async function submitOrderToServerAndSaveLocal(paymentMethodDisplay) {
@@ -190,7 +191,6 @@ async function submitOrderToServerAndSaveLocal(paymentMethodDisplay) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(orderData)
         });
-        localStorage.setItem('epennzyOrderHistory', JSON.stringify([...orderHistory, { ...orderData, id: Date.now(), date: new Date().toISOString(), status: "Menunggu Konfirmasi" }]));
         cart = []; updateCart();
         return true;
     } catch (error) {
@@ -198,7 +198,7 @@ async function submitOrderToServerAndSaveLocal(paymentMethodDisplay) {
         return false;
     }
 }
-function prepareWhatsAppMessage() { 
+function prepareWhatsAppMessage() {
     if (cart.length === 0) return null;
     let message = `Halo Epennzy Market,\n\nSaya ingin konfirmasi pembayaran untuk pesanan:\n\n`;
     cart.forEach(item => { message += `- ${item.name}\n`; });
@@ -316,7 +316,7 @@ async function handleProductAdd(event) {
         if (response.ok) {
             showCustomAlert("Produk baru berhasil ditambahkan!", "Sukses");
             addProductFormEl.reset();
-            loadProductsAndInitialize(); // Muat ulang semua produk
+            loadProductsAndInitialize();
         } else {
             showCustomAlert(data.message || "Gagal menambah produk.", "Error");
         }
@@ -343,7 +343,7 @@ async function loadProductsAndInitialize() {
         navigateTo('discoverPage'); 
     } catch (error) {
         console.error("Gagal memuat aplikasi:", error);
-        if(productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-red-400 p-4 rounded">Gagal memuat data produk. Pastikan URL backend benar dan server berjalan.</p>`;
+        if(productGrid) productGrid.innerHTML = `<p class="col-span-full text-center text-red-400 p-4 rounded">Gagal memuat data produk. Pastikan backend berjalan dengan benar.</p>`;
     }
 }
 
@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmViaWhatsAppButton.addEventListener('click', async function() { 
             const message = prepareWhatsAppMessage();
             if (message) {
-                const success = await submitOrderToServerAndSaveLocal();
+                const success = await submitOrderToServerAndSaveLocal("Transfer Manual");
                 if (success) window.open(`https://wa.me/6289654291565?text=${message}`, '_blank');
             }
         });
