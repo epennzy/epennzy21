@@ -1,6 +1,7 @@
 // --- PENTING: Atur URL Backend Anda di sini ---
-// Ganti 'https://URL_BACKEND_ANDA' dengan URL publik dari Codespaces atau layanan hosting Anda.
-const backendBaseUrl = 'https://epennzy-market-app.onrender.com'; // Contoh menggunakan Render
+// Jika frontend dan backend di-deploy bersamaan di Vercel, ini bisa dikosongkan.
+// Jika di-deploy terpisah (misalnya, backend di Render), isi dengan URL backend Anda.
+const backendBaseUrl = ''; // Contoh untuk Vercel. Ganti jika perlu.
 
 // Variabel Global & Elemen DOM
 let products = [];
@@ -25,6 +26,7 @@ const modalMessageTextEl = document.getElementById('modalMessageText');
 const modalCloseButton = document.getElementById('modalClose');
 const notificationButtonEl = document.getElementById('notificationButton');
 const checkoutTotalAmountDisplayEl = document.getElementById('checkoutTotalAmountDisplay');
+const confirmViaWhatsAppButton = document.getElementById('confirmViaWhatsAppButton');
 
 // Elemen Admin
 const adminUsernameEl = document.getElementById('adminUsername');
@@ -50,7 +52,7 @@ function formatPrice(price) { return `Rp${Number(price).toLocaleString('id-ID')}
 
 
 // --- Logika Navigasi & Tampilan ---
-function navigateTo(pageId, context = {}) {
+function navigateTo(pageId) {
     document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
     setTimeout(() => {
         document.querySelectorAll('.page').forEach(p => { if(p.id !== pageId) p.style.display = 'none'; });
@@ -64,7 +66,7 @@ function navigateTo(pageId, context = {}) {
             pageId = 'discoverPage';
         }
         window.scrollTo(0, 0); 
-        updateNavIcons(pageId, context);
+        updateNavIcons(pageId);
         if (pageId === 'cartPage' || pageId === 'checkoutPage') updateCart();
         else if (pageId === 'adminPanelPage') { if (adminToken) loadAdminOrders(); else navigateTo('adminLoginPage');}
     }, 50);
@@ -79,7 +81,7 @@ function handleSearchIconClick() {
 function updateNavIcons(pageId) {
     document.querySelectorAll('.bottom-nav-item svg.bottom-nav-icon-dark').forEach(icon => icon.classList.remove('active'));
     let activeNav = pageId;
-    if (pageId === 'adminPanelPage') activeNav = 'adminLoginPage'; // Arahkan ke ikon admin
+    if (pageId === 'adminPanelPage') activeNav = 'adminLoginPage';
     const activeNavItem = document.querySelector(`.bottom-nav-item[data-page='${activeNav}'] svg.bottom-nav-icon-dark`);
     if (activeNavItem) activeNavItem.classList.add('active');
     else document.querySelector(".bottom-nav-item[data-page='discoverPage'] svg.bottom-nav-icon-dark")?.classList.add('active');
@@ -144,7 +146,12 @@ function showProductDetail(productId) {
     document.getElementById('productDetailAddToCartButton').onclick = () => { addToCart(product.id); };
     navigateTo('productDetailPage');
 }
-
+function getCurrentPageId() { 
+    for (let page of document.querySelectorAll('.page')) { 
+        if (page.style.display !== 'none' && page.classList.contains('active')) { return page.id; }
+    }
+    return 'discoverPage';
+}
 
 // --- Logika Keranjang & Pesanan ---
 function addToCart(productId) { 
@@ -165,21 +172,25 @@ function updateCart() {
     cartItemCountEl.textContent = cart.length; cartItemCountEl.classList.toggle('hidden', cart.length === 0);
     localStorage.setItem('epennzyCart', JSON.stringify(cart));
 }
-async function submitOrderToServer() {
+async function submitOrderToServerAndSaveLocal(paymentMethodDisplay) {
     const buyerName = document.getElementById('buyerName').value;
     const buyerWhatsApp = document.getElementById('buyerWhatsApp').value;
     if (!buyerName || !buyerWhatsApp) { showCustomAlert("Mohon isi Nama dan Nomor WhatsApp Anda.", "Info Penting"); return false; }
-    if (cart.length === 0) return false;
-    const totalAmount = cart.reduce((sum, item) => sum + item.price, 0);
+    if (cart.length === 0) { showCustomAlert("Keranjang Anda kosong.", "Peringatan"); return false; }
+
+    const orderData = {
+        items: cart,
+        totalAmount: cart.reduce((sum, item) => sum + item.price, 0),
+        buyerName, buyerWhatsApp, paymentMethod: paymentMethodDisplay
+    };
+
     try {
         await fetch(`${backendBaseUrl}/api/orders/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                items: cart, totalAmount, buyerName, buyerWhatsApp, paymentMethod: "Transfer Manual"
-            })
+            body: JSON.stringify(orderData)
         });
-        localStorage.setItem('epennzyOrderHistory', JSON.stringify([...orderHistory, { id: Date.now(), date: new Date().toISOString(), items: cart, totalAmount, status: "Menunggu Konfirmasi" }]));
+        localStorage.setItem('epennzyOrderHistory', JSON.stringify([...orderHistory, { ...orderData, id: Date.now(), date: new Date().toISOString(), status: "Menunggu Konfirmasi" }]));
         cart = []; updateCart();
         return true;
     } catch (error) {
@@ -193,15 +204,6 @@ function prepareWhatsAppMessage() {
     cart.forEach(item => { message += `- ${item.name}\n`; });
     message += `\nTotal: ${cartTotalEl.textContent}\n\nTerima kasih.`;
     return encodeURIComponent(message);
-}
-if(document.getElementById('confirmViaWhatsAppButton')) {
-    document.getElementById('confirmViaWhatsAppButton').addEventListener('click', async function() { 
-        const message = prepareWhatsAppMessage();
-        if (message) {
-            const success = await submitOrderToServer();
-            if (success) window.open(`https://wa.me/6289654291565?text=${message}`, '_blank');
-        }
-    });
 }
 
 
@@ -293,7 +295,7 @@ async function updateOrderStatus(orderId) {
 async function handleProductAdd(event) {
     event.preventDefault();
     const newProduct = {
-        id: `prod_${Date.now()}`,
+        id: document.getElementById('newProductId').value,
         name: document.getElementById('newProductName').value,
         category: document.getElementById('newProductCategory').value,
         price: parseInt(document.getElementById('newProductPrice').value, 10),
@@ -301,8 +303,8 @@ async function handleProductAdd(event) {
         imageUrl: document.getElementById('newProductImageUrl').value,
         description: document.getElementById('newProductDescription').value.split('\n').filter(line => line.trim() !== '')
     };
-    if (!newProduct.name || !newProduct.price) {
-        showCustomAlert("Nama dan Harga produk wajib diisi.", "Error"); return;
+    if (!newProduct.id || !newProduct.name || !newProduct.price) {
+        showCustomAlert("ID, Nama, dan Harga produk wajib diisi.", "Error"); return;
     }
     try {
         const response = await fetch(`${backendBaseUrl}/api/admin/products`, {
@@ -354,4 +356,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (adminLoginButtonEl) adminLoginButtonEl.addEventListener('click', handleAdminLogin);
     if (adminLogoutButtonEl) adminLogoutButtonEl.addEventListener('click', handleAdminLogout);
     if (addProductFormEl) addProductFormEl.addEventListener('submit', handleProductAdd);
+    if (confirmViaWhatsAppButton) {
+        confirmViaWhatsAppButton.addEventListener('click', async function() { 
+            const message = prepareWhatsAppMessage();
+            if (message) {
+                const success = await submitOrderToServerAndSaveLocal();
+                if (success) window.open(`https://wa.me/6289654291565?text=${message}`, '_blank');
+            }
+        });
+    }
 });
